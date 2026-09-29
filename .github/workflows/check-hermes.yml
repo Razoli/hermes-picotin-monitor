@@ -3,6 +3,7 @@ name: Monitor Hermès Picotin Lock 18
 on:
   schedule:
     - cron: "7,17,27,37,47,57 * * * *"
+      timezone: "America/Sao_Paulo"
   workflow_dispatch:
 
 jobs:
