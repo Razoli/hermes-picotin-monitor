@@ -457,28 +457,25 @@ def build_message(results: list[ProductResult], discovery_ok: bool) -> str:
     lines = [
         "👜 HERMÈS — PICOTIN LOCK 18",
         f"🕒 Verificado: {now} (São Paulo)",
-        f"🛡️ Regra: status final só com {CHECKS_PER_PRODUCT}/{CHECKS_PER_PRODUCT} checagens concordando",
         "",
     ]
 
     if not discovery_ok:
         lines += [
             "⚠️ NÃO CONFIRMADO — não foi possível validar a página da Hermès.",
-            "Falha de acesso nunca é convertida em 'indisponível'.",
         ]
     elif not results:
         lines += [
             "⚠️ NÃO CONFIRMADO — nenhuma página de Picotin Lock 18 foi localizada.",
-            "Ausência de link não é tratada como 'indisponível'.",
         ]
     else:
         for item in results:
             if item.status == "AVAILABLE":
-                status = f"✅ DISPONÍVEL — confirmado ({item.checks_confirmed})"
+                status = "✅ DISPONÍVEL"
             elif item.status == "UNAVAILABLE":
-                status = f"❌ INDISPONÍVEL — confirmado ({item.checks_confirmed})"
+                status = "❌ INDISPONÍVEL"
             else:
-                status = f"⚠️ NÃO CONFIRMADO — {item.checks_confirmed}"
+                status = "⚠️ NÃO CONFIRMADO"
 
             lines.append(f"• {item.title}")
             if item.price:
@@ -487,11 +484,7 @@ def build_message(results: list[ProductResult], discovery_ok: bool) -> str:
             lines.append(f"  🔗 {item.url}")
             lines.append("")
 
-    lines += [
-        "ℹ️ DISPONÍVEL exige CTA de compra realmente habilitado e ausência de sinais contraditórios.",
-        "ℹ️ INDISPONÍVEL exige evidência explícita de falta de estoque/aviso e ausência de CTA habilitado.",
-        "⏱️ Próxima tentativa: aproximadamente 10 min; o GitHub pode atrasar o scheduler.",
-    ]
+    lines.append("⏱️ Próxima verificação: aproximadamente 10 min")
     return "\n".join(lines).strip()
 
 
