@@ -2,89 +2,127 @@
 
 Monitor open-source em Python + Playwright para verificar a disponibilidade real de **Picotin Lock 18** na Hermès Brasil e enviar o status para Telegram.
 
-## Objetivo
+## O que ele faz
 
-A cada aproximadamente 10 minutos, o workflow:
+O workflow:
 
-1. abre a categoria oficial da Hermès Brasil;
-2. descobre as páginas atuais de **Picotin Lock 18**;
-3. abre cada página em contextos de navegador novos;
-4. faz **3 checagens independentes e sequenciais**;
-5. exige **3 de 3** resultados iguais para concluir `DISPONÍVEL` ou `INDISPONÍVEL`;
-6. envia o status ao Telegram em toda execução.
+- roda aproximadamente a cada 10 minutos;
+- abre a categoria oficial da Hermès Brasil;
+- descobre as páginas atuais de Picotin Lock 18;
+- mantém algumas URLs oficiais conhecidas como fallback;
+- abre cada produto em **3 contextos de navegador novos**;
+- classifica cada checagem como `DISPONÍVEL`, `INDISPONÍVEL` ou `NÃO CONFIRMADO`;
+- só aceita o estado final `DISPONÍVEL` com **3/3 checagens positivas**;
+- só aceita o estado final `INDISPONÍVEL` com **3/3 checagens negativas explícitas**;
+- envia o status ao Telegram em **toda execução**.
 
-O monitor **não usa LLM, API paga, banco de dados pago ou servidor próprio**.
+Não usa LLM, banco de dados, servidor próprio ou API de IA paga.
 
-## Regra de disponibilidade
+## Como o estoque é confirmado
 
-Uma checagem só marca `AVAILABLE` quando encontra, ao mesmo tempo:
+### DISPONÍVEL
 
-- produto identificado como `Picotin Lock 18`;
-- botão/link de compra equivalente a **Adicionar à sacola** visível e habilitado;
-- sinal positivo de estoque no JSON-LD da página **ou** outra evidência positiva equivalente;
-- nenhum texto explícito de indisponibilidade/lista de espera;
-- nenhum `OutOfStock`/`SoldOut` no JSON-LD;
-- nenhuma indicação de página bloqueada/CAPTCHA.
+Uma checagem só é `DISPONÍVEL` quando todos estes pontos estão satisfeitos:
 
-Uma checagem só marca `UNAVAILABLE` quando encontra:
+1. o produto é identificado como **Picotin Lock 18**;
+2. existe um CTA de compra como **Adicionar à sacola**;
+3. o CTA está visível e não está desabilitado por atributo, `aria-disabled`, classes de indisponibilidade, `pointer-events:none` etc.;
+4. a página não apresenta texto explícito de falta de estoque/indisponibilidade;
+5. o JSON-LD não informa `OutOfStock`/`SoldOut`;
+6. a página não aparenta ser CAPTCHA/bloqueio/interstitial.
 
-- produto identificado como `Picotin Lock 18`;
-- **nenhum** CTA de compra habilitado;
-- evidência explícita de indisponibilidade, esgotamento/lista de espera ou `OutOfStock`/`SoldOut`;
-- nenhuma indicação de bloqueio da página.
+O JSON-LD `InStock` é usado como evidência adicional quando disponível, mas a confirmação transacional principal é o CTA de compra habilitado.
 
-Qualquer outra situação vira `UNKNOWN` / **NÃO CONFIRMADO**. O monitor deliberadamente não transforma erro, CAPTCHA, página incompleta ou divergência em um falso “INDISPONÍVEL”. Para o estado final, exige unanimidade das 3 checagens.
+### INDISPONÍVEL
+
+Uma checagem só é `INDISPONÍVEL` quando:
+
+1. o produto é identificado como **Picotin Lock 18**;
+2. não existe CTA de compra habilitado;
+3. existe evidência explícita de indisponibilidade, esgotamento, aviso de reposição/lista de espera ou `OutOfStock`/`SoldOut`;
+4. a página não aparenta estar bloqueada.
+
+### NÃO CONFIRMADO
+
+Qualquer caso ambíguo fica em `NÃO CONFIRMADO`:
+
+- página incompleta;
+- CAPTCHA ou bloqueio;
+- timeout;
+- sinais contraditórios;
+- botão e indicador de estoque divergentes;
+- descoberta de produto falhou.
+
+O monitor **nunca transforma falha de acesso em indisponível**.
+
+## 3 verificações independentes
+
+Cada produto é checado três vezes em novos contextos do navegador. O resultado final é:
+
+- `AVAILABLE` somente se **3/3** forem `AVAILABLE`;
+- `UNAVAILABLE` somente se **3/3** forem `UNAVAILABLE`;
+- caso contrário, `UNKNOWN`.
+
+Isso reduz falsos positivos causados por carregamento parcial ou inconsistência momentânea.
 
 ## Telegram
 
-Você recebe uma mensagem em cada execução, por exemplo:
+### Token
+
+Crie o bot com `@BotFather` e guarde o token como GitHub Secret:
+
+`TELEGRAM_BOT_TOKEN`
+
+### Chat ID automático
+
+`TELEGRAM_CHAT_ID` é opcional.
+
+Para autodetecção:
+
+1. abra o bot no Telegram;
+2. clique em **Start**;
+3. envie `teste`;
+4. execute o workflow manualmente uma vez.
+
+O monitor consulta `getUpdates` e, se existir **uma única conversa privada** associada ao bot, usa esse Chat ID automaticamente.
+
+Se mais de uma pessoa usar o bot, o monitor não adivinha: crie o Secret `TELEGRAM_CHAT_ID` para evitar enviar mensagens para a pessoa errada.
+
+## GitHub Actions
+
+Para maximizar o uso gratuito, este projeto foi preparado para **repositório público + `ubuntu-latest`**. O uso dos runners padrão hospedados pelo GitHub é gratuito e ilimitado em repositórios públicos.
+
+O cron usado é:
 
 ```text
-👜 HERMÈS — PICOTIN LOCK 18
-
-• Bolsa Picotin Lock 18
-  💰 R$ 24.900,00
-  ✅ DISPONÍVEL — confirmado (3/3)
-  🔗 https://...
+7,17,27,37,47,57 * * * *
 ```
 
-ou:
+Isso representa aproximadamente uma tentativa a cada 10 minutos. O GitHub pode atrasar execuções agendadas.
 
-```text
-• Bolsa Picotin Lock 18
-  ❌ INDISPONÍVEL — confirmado (3/3)
-```
+## Configuração rápida
 
-Se houver divergência:
+1. crie um repositório GitHub público;
+2. envie todos os arquivos deste projeto;
+3. crie o Secret `TELEGRAM_BOT_TOKEN`;
+4. no Telegram, abra o bot, pressione Start e envie `teste`;
+5. abra **Actions → Monitor Hermès Picotin Lock 18 → Run workflow**;
+6. confira a primeira mensagem do Telegram.
 
-```text
-⚠️ NÃO CONFIRMADO — checagens divergentes/insuficientes
-```
+## Segurança
 
-## Configuração
+- nunca coloque o token do Telegram no código;
+- se um token antigo foi exposto, revogue-o no BotFather e gere outro;
+- nunca publique senha da Hermès no repositório;
+- o monitor não tenta contornar CAPTCHA, rate limits ou bloqueios;
+- o monitor não adiciona o produto à sacola nem realiza compras.
 
-No GitHub, crie um repositório. Para maximizar a compatibilidade com execução gratuita, use um **repositório público** e os runners padrão (`ubuntu-latest`). O GitHub informa que runners padrão em repositórios públicos são gratuitos. Em repositórios privados, o plano GitHub Free inclui 2.000 minutos/mês antes da cobrança/impedimento por cota. Veja a documentação oficial do GitHub.
+## Fontes oficiais
 
-Crie os Secrets:
-
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
-
-Depois rode manualmente:
-
-**Actions → Monitor Hermès Picotin Lock 18 → Run workflow**
-
-## Por que o cron está em 7, 17, 27, 37, 47, 57?
-
-Ele continua tendo intervalo de 10 minutos, mas evita o minuto `00`. O GitHub informa que o evento `schedule` pode sofrer atrasos em períodos de alta carga, especialmente no começo da hora.
-
-## Limitações reais
-
-- “A cada 10 minutos” significa **tentativa de disparo** a cada 10 minutos. O scheduler do GitHub pode atrasar uma execução.
-- Em repositório público, workflows agendados podem ser desativados automaticamente depois de 60 dias sem atividade do repositório; reabilite o workflow ou faça alguma atividade no repositório.
-- A Hermès pode alterar HTML, seletores ou mecanismos de estoque. Por isso o código usa múltiplos sinais e um estado `UNKNOWN` para evitar falsos positivos.
-- O monitor não tenta contornar CAPTCHA, bloqueios, autenticação, rate limits ou outras proteções do site.
-- O monitor não adiciona a bolsa à sacola nem realiza compra.
+- Hermès Brasil — categoria Picotin: https://www.hermes.com/br/pt/content/316316-bolsas-hermes-picotin/
+- Hermès Brasil — Picotin Lock 18: https://www.hermes.com/br/pt/product/bolsa-picotin-lock-18-H056289CC37/
+- Telegram Bot API: https://core.telegram.org/bots/api
+- GitHub Actions runners: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
 
 ## Licença
 
